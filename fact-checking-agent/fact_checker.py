@@ -1,6 +1,7 @@
 from google import genai
 from pydantic import BaseModel, ValidationError
 import json
+from google.genai import types
 
 client = genai.Client()
 
@@ -54,11 +55,29 @@ def get_weather(city: str) -> dict:
         "wind_kph": 12.8,
     }
 
+
+get_weather_function = {
+    "name": "get_weather",
+    "description": "Fetch the current weather for a city.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "city": {"type": "string", "description": "The name of the city to fetch weather for."}
+        },
+        "required": ["city"]
+    }
+}
+
+tools = types.Tools(
+    functions=[get_weather_function]
+)
+
 response = client.models.generate_content(
     model="gemini-3.5-flash",
     contents=prompt1,
-    config=genai.types.GenerateContentConfig(
-        tools=[get_weather]
+    config=types.GenerateContentConfig(
+        tools=[tools],
+        temperature=0.0
     )
 )
 
