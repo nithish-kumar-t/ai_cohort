@@ -2,6 +2,7 @@
 from google import genai
 from rich.console import Console
 import subprocess
+import os
 
 console = Console()
 
@@ -16,7 +17,7 @@ class PatchAgent:
             code = file.read()
 
         result = subprocess.run(
-            ["python", file_path],
+            ["python3", file_path],
             capture_output=True,
             text=True,
             check=False
@@ -82,13 +83,16 @@ class PatchAgent:
             
         return patch.strip()
     
-    def apply_patch(self, code, patch):
+    def apply_patch(self, code, patch, file_path):
+        target_dir = os.path.dirname(os.path.abspath(file_path))
+
         result = subprocess.run(
             ["git", "apply", "-"], 
             input=patch,
             text=True,
             capture_output=True,
-            check=False
+            check=False,
+            cwd = target_dir
         )
 
         if result.stderr:
@@ -103,16 +107,22 @@ class PatchAgent:
 if __name__ == "__main__":
     agent = PatchAgent()
     num_of_iterations = 3  # Set the number of iterations you want to run
-    file_path = "num-test.py"
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(script_dir, "num-test.py")
+
+    console.print(f"[blue]Starting analysis for {file_path}[/blue]")
+
     for itr in range(num_of_iterations):
         console.print(f"[blue]Iteration {itr + 1} of {num_of_iterations}[/blue]")
         code, output, error_output = agent.analyze_file(file_path)
 
         if error_output:
             patch = agent.generate_patch(code, error_output)
-            updated_code, apply_error = agent.apply_patch(code, patch)
+            updated_code, apply_error = agent.apply_patch(code, patch, file_path)
             if apply_error:
                 console.print("[red]Failed to apply the patch.[/red]")
+                break
             else:
                 console.print("[green]Patch applied successfully. Updated code:[/green]")
                 console.print(updated_code)
