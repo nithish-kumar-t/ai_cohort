@@ -9,6 +9,9 @@ from rich.console import Console
 
 client = genai.Client()
 
+CHECKPOINT_FILE = "checkpoint.json"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 task = "Design a URL shortening service like bit.ly. "
 "The service should allow users to input a long URL and receive a shortened version. "
 "The shortened URL should redirect to the original long URL when accessed. "
@@ -58,13 +61,16 @@ STEPS = [
     }
 ]
 
-MODEL="gemini-3.5-flash"
+MODEL="gemini-3.1-flash-lite"
 console = Console()
 
 def run_agent(reset = False):
     if (reset):
         delete_checkpoint_info()
+    # loaded checkpoint info
     checkpoint_info = load_checkpoint_info()
+    console.print(f"[blue]Loaded checkpoint info: {checkpoint_info}[/blue]")
+
     current_step = checkpoint_info.get("current_step", 0)
     completed_steps = checkpoint_info.get("completed_steps", [])
 
@@ -94,33 +100,39 @@ def run_agent(reset = False):
 
 
 def load_checkpoint_info():
-    checkpoint_file = "checkpoint.json"
-    if os.path.exists(checkpoint_file):
-        with open(checkpoint_file, "r") as f:
-            checkpoint_info = json.load(f)
+    DEFAULT_CHECKPOINT = {
+        "current_step": 0,
+        "completed_steps": []
+    }
+
+    if os.path.exists(CHECKPOINT_FILE):
+        try:
+            with open(CHECKPOINT_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            # File exists but is empty (0 bytes) or invalid JSON.
+            # Overwrite it with default state and return the default.
+            update_checkpoint_info(DEFAULT_CHECKPOINT["current_step"], DEFAULT_CHECKPOINT["completed_steps"])
+            return DEFAULT_CHECKPOINT
     else:
-        checkpoint_info = {
-            "current_step": 0,
-            "completed_steps": []
-        }
-    return checkpoint_info
-
-
-def delete_checkpoint_info():
-    checkpoint_file = "checkpoint.json"
-    if os.path.exists(checkpoint_file):
-        with open(checkpoint_file, "w") as f:
-            json.dump({}, f)  # Writes valid empty JSON: {}
-
+        return DEFAULT_CHECKPOINT
 
 def update_checkpoint_info(current_step, completed_steps):
-    checkpoint_file = "checkpoint.json"
     checkpoint_info = {
         "current_step": current_step,
         "completed_steps": completed_steps
     }
-    with open(checkpoint_file, "w") as f:
+    with open(CHECKPOINT_FILE, "w") as f:
         json.dump(checkpoint_info, f, indent=4)
+
+def delete_checkpoint_info():
+    DEFAULT_CHECKPOINT = {
+        "current_step": 0,
+        "completed_steps": []
+    }
+    # Always write valid JSON instead of truncating to 0 bytes
+    with open(CHECKPOINT_FILE, "w") as f:
+        json.dump(DEFAULT_CHECKPOINT, f, indent=4)
 
 
 def call_model(prompt):
