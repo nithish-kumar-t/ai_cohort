@@ -110,8 +110,6 @@ def load_checkpoint_info():
             with open(CHECKPOINT_FILE, "r") as f:
                 return json.load(f)
         except json.JSONDecodeError:
-            # File exists but is empty (0 bytes) or invalid JSON.
-            # Overwrite it with default state and return the default.
             update_checkpoint_info(DEFAULT_CHECKPOINT["current_step"], DEFAULT_CHECKPOINT["completed_steps"])
             return DEFAULT_CHECKPOINT
     else:
@@ -130,10 +128,8 @@ def delete_checkpoint_info():
         "current_step": 0,
         "completed_steps": []
     }
-    # Always write valid JSON instead of truncating to 0 bytes
     with open(CHECKPOINT_FILE, "w") as f:
         json.dump(DEFAULT_CHECKPOINT, f, indent=4)
-
 
 def call_model(prompt):
     response = client.models.generate_content(
@@ -142,6 +138,5 @@ def call_model(prompt):
     )
     return response.text.strip()
 
-
-
-run_agent(reset = False)
+if __name__ == "__main__":
+    run_agent(reset=False)
