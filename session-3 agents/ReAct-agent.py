@@ -1,6 +1,5 @@
 from google import genai
 from pydantic import BaseModel, ValidationError
-import json
 from google.genai import types
 import electoral_data_tool
 
@@ -78,50 +77,68 @@ contents = [
 def __main__():
     #Start the ReAct agent loop here
 
+    print("Starting ReAct agent loop.....", query, "\n\n")
+
     for itr in range(MAX_ITR):
-        print(f"Iteration {itr} :", contents[-1].parts[0].text if contents else "No content")
+        print(f"Iteration {itr + 1}:")
         response = client.models.generate_content(
             model="gemini-3.5-flash",
             contents=contents,  
             config=config
         )
-        print(response.content)
+
+        print(f"\nLLM response for iteration {itr + 1}:")
+        print(response.text or "(No text; the model requested tool calls.)")
 
         if response.function_calls:
-            print("Processing function calls...")
-            print(response.function_calls)
+            print("Tool calls requested in this response:")
+            print("\n\n")
+
+            contents.append(response.candidates[0].content)
+            function_response_parts = []
 
             for call in response.function_calls:
-                print(call)
+                print(f"  {call.name}: {call.args}")
                 if call.name == "calculator":
-                    print(f"Calculator called with arguments: {call.arguments}")
-                    args = json.loads(call.arguments)
+                    print(f"Calculator called with arguments: {call.args}")
+                    args = call.args
                     result = calculator(args["a"], args["b"], args["operation"])
                     print(f"Calculator result: {result}")
-                    contents.append(
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=f"Calculator result: {result}")]
+                    function_response_parts.append(
+                        types.Part.from_function_response(
+                            name=call.name,
+                            response={"result": result},
                         )
                     )
                 elif call.name == "electoral_data_tool":
-                    print(f"Electoral Data Tool called with arguments: {call.arguments}")
-                    args = json.loads(call.arguments)
+                    print(f"Electoral Data Tool called with arguments: {call.args}")
+                    args = call.args
                     result = electoral_data_tool.get_election_dataset(
                         category=args["category"],
-                        state_name=args.get("state_name")
+                        state_name=args.get("state_name", None)
                     )
                     print(f"Electoral Data Tool result: {result}")
-                    contents.append(
-                        types.Content(
-                            role="user",
-                            parts=[types.Part.from_text(text=f"Electoral Data Tool result: {result}")]
+                    function_response_parts.append(
+                        types.Part.from_function_response(
+                            name=call.name,
+                            response={"result": result},
                         )
                     )
                 else:
-                    print(f"Unknown function call: {call.name}")
+                    raise ValueError(f"Unknown function call: {call.name}")
+                
 
+            contents.append(
+                types.Content(role="user", parts=function_response_parts)
+            )
+        else:
+            break
+        
+        print("\n\n")
 
+    print("ReAct agent loop ended.")
+    print("Final contents:", contents)
+    
 
 if __name__ == "__main__":
     __main__()
